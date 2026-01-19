@@ -59,7 +59,7 @@ export async function PATCH(
       updates.weight = Math.max(1, Math.min(10, Math.round(weight / 10)))
     }
     if (data_type !== undefined) updates.type = data_type
-    if (ideal_values !== undefined) updates.acceptable_values = ideal_values
+    if (ideal_values !== undefined) updates.ideal_values = ideal_values
 
     // Update criterion
     const { data: dbCriterion, error } = await supabase
@@ -78,7 +78,7 @@ export async function PATCH(
     const criterion = {
       ...dbCriterion,
       data_type: dbCriterion.type,
-      ideal_values: dbCriterion.acceptable_values || [],
+      ideal_values: dbCriterion.ideal_values || [],
       weight: dbCriterion.weight * 10,
     }
 

@@ -42,7 +42,7 @@ export async function GET() {
     const criteria = dbCriteria?.map((c) => ({
       ...c,
       data_type: c.type,
-      ideal_values: c.acceptable_values || [],
+      ideal_values: c.ideal_values || [],
       weight: c.weight * 10, // Convert from 1-10 to percentage
     })) || []
 
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         description,
         weight: dbWeight,
         type: criterionType,
-        acceptable_values: ideal_values || [],
+        ideal_values: ideal_values || [],
       })
       .select()
       .single()

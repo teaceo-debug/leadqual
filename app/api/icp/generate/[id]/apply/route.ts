@@ -95,7 +95,7 @@ export async function POST(
       description: c.reasoning || null,
       // Convert from percentage (0-100) to database scale (1-10)
       weight: Math.max(1, Math.min(10, Math.round(c.weight / 10))),
-      acceptable_values: c.ideal_values,
+      ideal_values: c.ideal_values,
       sort_order: index,
     }))
 
