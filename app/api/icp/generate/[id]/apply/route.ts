@@ -87,14 +87,15 @@ export async function POST(
       }
     }
 
-    // Insert new criteria
+    // Insert new criteria with correct DB column names
     const newCriteria = criteriaToApply.map((c: GeneratedCriterion, index: number) => ({
       organization_id: membership.organization_id,
       name: c.name,
       type: c.type,
       description: c.reasoning || null,
-      weight: c.weight,
-      ideal_values: c.ideal_values,
+      // Convert from percentage (0-100) to database scale (1-10)
+      weight: Math.max(1, Math.min(10, Math.round(c.weight / 10))),
+      acceptable_values: c.ideal_values,
       sort_order: index,
     }))
 

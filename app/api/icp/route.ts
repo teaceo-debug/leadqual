@@ -27,7 +27,7 @@ export async function GET() {
     }
 
     // Get ICP criteria
-    const { data: criteria, error } = await supabase
+    const { data: dbCriteria, error } = await supabase
       .from('icp_criteria')
       .select('*')
       .eq('organization_id', membership.organization_id)
@@ -37,6 +37,14 @@ export async function GET() {
       console.error('Error fetching ICP criteria:', error)
       return NextResponse.json({ error: 'Failed to fetch criteria' }, { status: 500 })
     }
+
+    // Map database fields to frontend types
+    const criteria = dbCriteria?.map((c) => ({
+      ...c,
+      data_type: c.type,
+      ideal_values: c.acceptable_values || [],
+      weight: c.weight * 10, // Convert from 1-10 to percentage
+    })) || []
 
     return NextResponse.json({ criteria })
   } catch (error) {
@@ -88,13 +96,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate weight
-    if (weight < 0 || weight > 100) {
-      return NextResponse.json(
-        { error: 'Weight must be between 0 and 100' },
-        { status: 400 }
-      )
-    }
+    // Convert weight from percentage (0-100) to database scale (1-10)
+    const dbWeight = Math.max(1, Math.min(10, Math.round(weight / 10)))
 
     // Create criterion
     const { data: criterion, error } = await supabase
@@ -103,9 +106,9 @@ export async function POST(request: NextRequest) {
         organization_id: membership.organization_id,
         name,
         description,
-        weight,
+        weight: dbWeight,
         type: criterionType,
-        ideal_values: ideal_values || [],
+        acceptable_values: ideal_values || [],
       })
       .select()
       .single()

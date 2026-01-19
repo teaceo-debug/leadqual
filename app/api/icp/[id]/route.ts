@@ -50,24 +50,19 @@ export async function PATCH(
     const body = await request.json()
     const { name, description, weight, data_type, ideal_values } = body
 
-    // Validate weight if provided
-    if (weight !== undefined && (weight < 0 || weight > 100)) {
-      return NextResponse.json(
-        { error: 'Weight must be between 0 and 100' },
-        { status: 400 }
-      )
-    }
-
-    // Build update object
+    // Build update object with correct DB column names
     const updates: Record<string, unknown> = {}
     if (name !== undefined) updates.name = name
     if (description !== undefined) updates.description = description
-    if (weight !== undefined) updates.weight = weight
-    if (data_type !== undefined) updates.data_type = data_type
-    if (ideal_values !== undefined) updates.ideal_values = ideal_values
+    if (weight !== undefined) {
+      // Convert from percentage (0-100) to database scale (1-10)
+      updates.weight = Math.max(1, Math.min(10, Math.round(weight / 10)))
+    }
+    if (data_type !== undefined) updates.type = data_type
+    if (ideal_values !== undefined) updates.acceptable_values = ideal_values
 
     // Update criterion
-    const { data: criterion, error } = await supabase
+    const { data: dbCriterion, error } = await supabase
       .from('icp_criteria')
       .update(updates)
       .eq('id', id)
@@ -77,6 +72,14 @@ export async function PATCH(
     if (error) {
       console.error('Error updating criterion:', error)
       return NextResponse.json({ error: 'Failed to update criterion' }, { status: 500 })
+    }
+
+    // Map database fields to frontend types
+    const criterion = {
+      ...dbCriterion,
+      data_type: dbCriterion.type,
+      ideal_values: dbCriterion.acceptable_values || [],
+      weight: dbCriterion.weight * 10,
     }
 
     return NextResponse.json({ criterion })
