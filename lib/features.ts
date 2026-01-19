@@ -18,27 +18,88 @@ export interface FeatureVector {
   company_health_score: number
   urgency_indicators: number
 
+  // Behavioral features (from pixel/tracking data)
+  engagement_score: number         // Page views, time on site, interactions
+  behavioral_intent_score: number  // Pricing/demo page visits, high-intent actions
+  recency_score: number            // How recently they engaged
+  frequency_score: number          // Visit frequency
+  channel_quality_score: number    // Based on traffic source (paid vs organic)
+
   // Data quality features
   data_completeness: number
   contact_quality: number
 }
 
 /**
+ * Behavioral scores from tracking data
+ */
+export interface BehavioralScores {
+  total_page_views?: number
+  unique_pages_viewed?: number
+  total_time_on_site?: number
+  pricing_page_views?: number
+  demo_page_views?: number
+  case_study_views?: number
+  feature_page_views?: number
+  forms_started?: number
+  forms_completed?: number
+  cta_clicks?: number
+  days_since_first_visit?: number
+  days_since_last_visit?: number
+  visit_frequency?: number
+  engagement_score?: number
+  intent_score?: number
+  recency_score?: number
+  frequency_score?: number
+  behavioral_score?: number
+}
+
+/**
+ * Tracking data from ad platforms
+ */
+export interface TrackingParams {
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  fbclid?: string
+  gclid?: string
+  ttclid?: string
+}
+
+/**
  * Default feature weights for initial scoring
  * These are overridden by learned weights when available
+ *
+ * Weight distribution:
+ * - ICP alignment: 35% (company fit)
+ * - AI enrichment: 25% (context understanding)
+ * - Behavioral: 30% (engagement signals)
+ * - Data quality: 10% (completeness/validity)
  */
 export const DEFAULT_FEATURE_WEIGHTS: FeatureVector = {
-  company_size_match: 0.10,
-  industry_match: 0.08,
-  budget_match: 0.15,
-  timeline_match: 0.10,
-  job_title_match: 0.08,
-  buying_intent_score: 0.15,
-  authority_level: 0.12,
-  company_health_score: 0.08,
-  urgency_indicators: 0.10,
-  data_completeness: 0.02,
-  contact_quality: 0.02,
+  // ICP alignment features (35%)
+  company_size_match: 0.08,
+  industry_match: 0.07,
+  budget_match: 0.10,
+  timeline_match: 0.05,
+  job_title_match: 0.05,
+
+  // AI enrichment features (25%)
+  buying_intent_score: 0.08,
+  authority_level: 0.07,
+  company_health_score: 0.05,
+  urgency_indicators: 0.05,
+
+  // Behavioral features (30%) - These are key differentiators!
+  engagement_score: 0.08,           // High engagement = interested
+  behavioral_intent_score: 0.12,    // Pricing/demo views = buying signals
+  recency_score: 0.05,              // Recent activity = active interest
+  frequency_score: 0.03,            // Multiple visits = consideration stage
+  channel_quality_score: 0.02,      // Paid traffic often higher intent
+
+  // Data quality (10%)
+  data_completeness: 0.05,
+  contact_quality: 0.05,
 }
 
 /**
@@ -51,7 +112,9 @@ export function extractFeatures(
     intent?: { buying_intent_score?: number; urgency_score?: number }
     authority?: { authority_level?: number }
     company?: { health_score?: number }
-  }
+  },
+  behavioral?: BehavioralScores,
+  tracking?: TrackingParams
 ): FeatureVector {
   // Build criteria lookup by type/name
   const criteriaByType: Record<string, ICPCriterion> = {}
@@ -89,10 +152,100 @@ export function extractFeatures(
     company_health_score: normalizeScore(enrichments?.company?.health_score, 0.5),
     urgency_indicators: normalizeScore(enrichments?.intent?.urgency_score, 0.5),
 
+    // Behavioral features (from pixel/tracking data)
+    engagement_score: normalizeScore(behavioral?.engagement_score, 0.5),
+    behavioral_intent_score: calculateBehavioralIntent(behavioral),
+    recency_score: normalizeScore(behavioral?.recency_score, 0.5),
+    frequency_score: normalizeScore(behavioral?.frequency_score, 0.5),
+    channel_quality_score: calculateChannelQuality(tracking),
+
     // Data quality features
     data_completeness: calculateDataCompleteness(lead),
     contact_quality: calculateContactQuality(lead),
   }
+}
+
+/**
+ * Calculate behavioral intent score from high-value page views
+ */
+function calculateBehavioralIntent(behavioral?: BehavioralScores): number {
+  if (!behavioral) return 0.5
+
+  // Use pre-calculated intent score if available
+  if (behavioral.intent_score !== undefined) {
+    return normalizeScore(behavioral.intent_score, 0.5)
+  }
+
+  // Calculate from individual signals
+  let intentScore = 0.3 // Base score
+
+  // Pricing page is strongest buying signal
+  if (behavioral.pricing_page_views) {
+    intentScore += Math.min(0.3, behavioral.pricing_page_views * 0.15)
+  }
+
+  // Demo page shows active evaluation
+  if (behavioral.demo_page_views) {
+    intentScore += Math.min(0.2, behavioral.demo_page_views * 0.1)
+  }
+
+  // Case studies indicate serious consideration
+  if (behavioral.case_study_views) {
+    intentScore += Math.min(0.1, behavioral.case_study_views * 0.05)
+  }
+
+  // CTA clicks show action-taking behavior
+  if (behavioral.cta_clicks) {
+    intentScore += Math.min(0.1, behavioral.cta_clicks * 0.05)
+  }
+
+  // Form completion is high intent
+  if (behavioral.forms_completed) {
+    intentScore += 0.1
+  }
+
+  return Math.min(1, intentScore)
+}
+
+/**
+ * Calculate channel quality score based on traffic source
+ */
+function calculateChannelQuality(tracking?: TrackingParams): number {
+  if (!tracking) return 0.5
+
+  // Paid traffic from major platforms tends to be higher intent
+  if (tracking.gclid) return 0.8  // Google Ads - high intent search
+  if (tracking.fbclid) return 0.7 // Facebook Ads - targeted audience
+  if (tracking.ttclid) return 0.65 // TikTok Ads - growing B2B presence
+
+  // Evaluate UTM source/medium
+  const source = tracking.utm_source?.toLowerCase() || ''
+  const medium = tracking.utm_medium?.toLowerCase() || ''
+
+  // Paid search is highest quality
+  if (medium === 'cpc' || medium === 'ppc' || medium === 'paid') {
+    if (source === 'google' || source === 'bing') return 0.8
+    return 0.7
+  }
+
+  // Organic search indicates active research
+  if (medium === 'organic' || source === 'google' || source === 'bing') {
+    return 0.65
+  }
+
+  // Referral traffic can be high quality
+  if (medium === 'referral') return 0.6
+
+  // Social can vary
+  if (medium === 'social') return 0.55
+
+  // Email campaigns to existing lists
+  if (medium === 'email') return 0.7
+
+  // Direct traffic is moderate (could be returning visitor)
+  if (source === 'direct' || source === '(direct)') return 0.55
+
+  return 0.5
 }
 
 /**
@@ -377,6 +530,11 @@ export function deserializeFeatures(data: Record<string, number>): FeatureVector
     authority_level: data.authority_level ?? 0.5,
     company_health_score: data.company_health_score ?? 0.5,
     urgency_indicators: data.urgency_indicators ?? 0.5,
+    engagement_score: data.engagement_score ?? 0.5,
+    behavioral_intent_score: data.behavioral_intent_score ?? 0.5,
+    recency_score: data.recency_score ?? 0.5,
+    frequency_score: data.frequency_score ?? 0.5,
+    channel_quality_score: data.channel_quality_score ?? 0.5,
     data_completeness: data.data_completeness ?? 0.5,
     contact_quality: data.contact_quality ?? 0.5,
   }
