@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Type for behavioral event records
+interface BehavioralEvent {
+  id: string
+  lead_id: string
+  organization_id: string
+  visitor_id: string
+  session_id: string
+  event_type: string
+  event_time: string
+  page_url?: string
+  page_title?: string
+  referrer?: string
+  content_type?: string
+  content_id?: string
+  scroll_depth?: number
+  time_on_page?: number
+  event_data?: Record<string, unknown>
+}
+
 // Track behavioral events from the client-side tracker
 export async function POST(request: NextRequest) {
   try {
@@ -240,18 +259,19 @@ function detectContentType(path: string | undefined): string | null {
 }
 
 async function calculateBehavioralScore(
-  client: any,
+  client: ReturnType<typeof createAdminClient>,
   leadId: string,
   organizationId: string
 ) {
   // Get all events for this lead
-  const { data: events } = await client
+  const { data: eventsData } = await client
     .from('behavioral_events')
     .select('*')
     .eq('lead_id', leadId)
     .order('event_time', { ascending: true })
 
-  if (!events || events.length === 0) return
+  const events = (eventsData || []) as BehavioralEvent[]
+  if (events.length === 0) return
 
   // Calculate metrics
   const pageViews = events.filter(e => e.event_type === 'page_view').length
