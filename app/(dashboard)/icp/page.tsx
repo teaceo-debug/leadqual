@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CriterionCard } from '@/components/icp/criterion-card'
 import { CriterionForm } from '@/components/icp/criterion-form'
-import { Plus, Target, AlertCircle } from 'lucide-react'
+import { ICPGenerator } from '@/components/icp/icp-generator'
+import { Plus, Target, AlertCircle, Wand2 } from 'lucide-react'
 import type { ICPCriterion } from '@/types'
 
 export default function ICPPage() {
@@ -17,6 +19,7 @@ export default function ICPPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingCriterion, setEditingCriterion] = useState<ICPCriterion | null>(null)
   const [saving, setSaving] = useState(false)
+  const [showGenerator, setShowGenerator] = useState(false)
 
   useEffect(() => {
     fetchCriteria()
@@ -178,10 +181,16 @@ export default function ICPPage() {
             Define your Ideal Customer Profile criteria for lead qualification
           </p>
         </div>
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Criterion
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowGenerator(true)}>
+            <Wand2 className="mr-2 h-4 w-4" />
+            Auto-Generate ICP
+          </Button>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Criterion
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -254,12 +263,18 @@ export default function ICPPage() {
           <EmptyState
             icon={<Target className="h-12 w-12" />}
             title="No ICP criteria yet"
-            description="Add criteria to define your ideal customer profile. These criteria will be used to score and qualify your leads."
+            description="Add criteria to define your ideal customer profile, or let AI auto-generate them based on your company or customer data."
             action={
-              <Button onClick={() => setFormOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Your First Criterion
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button onClick={() => setShowGenerator(true)}>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Auto-Generate ICP
+                </Button>
+                <Button variant="outline" onClick={() => setFormOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Manually
+                </Button>
+              </div>
             }
           />
         </Card>
@@ -284,6 +299,17 @@ export default function ICPPage() {
         onSave={editingCriterion ? handleUpdate : handleCreate}
         saving={saving}
       />
+
+      <Sheet open={showGenerator} onOpenChange={setShowGenerator}>
+        <SheetContent className="sm:max-w-xl overflow-y-auto">
+          <ICPGenerator
+            onComplete={() => {
+              fetchCriteria()
+              setShowGenerator(false)
+            }}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
