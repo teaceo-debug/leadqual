@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Disallow private routes
+Disallow: /dashboard
+Disallow: /leads
+Disallow: /icp
+Disallow: /webhooks
+Disallow: /team
+Disallow: /settings
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://leadscores.com/sitemap.xml
