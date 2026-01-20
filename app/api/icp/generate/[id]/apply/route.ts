@@ -87,14 +87,37 @@ export async function POST(
       }
     }
 
+    // Convert weights from percentage (0-100) to database scale (1-10)
+    // Use a distribution algorithm to ensure weights sum to exactly 10
+    const rawWeights = criteriaToApply.map((c: GeneratedCriterion) => c.weight / 10)
+    const totalRaw = rawWeights.reduce((sum, w) => sum + w, 0)
+
+    // Normalize weights to sum to 10
+    const normalizedWeights = rawWeights.map(w => (w / totalRaw) * 10)
+
+    // Use largest remainder method to distribute integer weights
+    const floorWeights = normalizedWeights.map(w => Math.floor(w))
+    const remainders = normalizedWeights.map((w, i) => ({ index: i, remainder: w - floorWeights[i] }))
+    remainders.sort((a, b) => b.remainder - a.remainder)
+
+    let totalFloor = floorWeights.reduce((sum, w) => sum + w, 0)
+    const targetSum = 10
+
+    // Distribute remaining points to items with largest remainders
+    for (let i = 0; i < targetSum - totalFloor && i < remainders.length; i++) {
+      floorWeights[remainders[i].index]++
+    }
+
+    // Ensure minimum weight of 1
+    const finalWeights = floorWeights.map(w => Math.max(1, w))
+
     // Insert new criteria with correct DB column names
     const newCriteria = criteriaToApply.map((c: GeneratedCriterion, index: number) => ({
       organization_id: membership.organization_id,
       name: c.name,
       type: c.type,
       description: c.reasoning || null,
-      // Convert from percentage (0-100) to database scale (1-10)
-      weight: Math.max(1, Math.min(10, Math.round(c.weight / 10))),
+      weight: finalWeights[index],
       ideal_values: c.ideal_values,
       sort_order: index,
     }))
