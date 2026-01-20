@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CriterionCard } from '@/components/icp/criterion-card'
 import { CriterionForm } from '@/components/icp/criterion-form'
@@ -302,6 +302,9 @@ export default function ICPPage() {
 
       <Sheet open={showGenerator} onOpenChange={setShowGenerator}>
         <SheetContent className="sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="sr-only">Auto-Generate ICP</SheetTitle>
+          </SheetHeader>
           <ICPGenerator
             onComplete={() => {
               fetchCriteria()
