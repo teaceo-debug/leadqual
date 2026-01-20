@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { formatRelativeDate, getLabelColor } from '@/lib/utils'
 import { getModelStats } from '@/lib/learn'
 import { ModelMetricsCard } from '@/components/dashboard/model-metrics-card'
+import { LeadTrendsChart } from '@/components/dashboard/lead-trends-chart'
+import { IndustryBreakdownChart, CompanySizeChart, ScoreDistributionChart } from '@/components/dashboard/analytics-charts'
 
 async function getAnalytics(supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never) {
   // First verify we have an authenticated user
@@ -200,6 +202,16 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Lead Trends Chart */}
+      <LeadTrendsChart />
+
+      {/* Analytics Charts */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <IndustryBreakdownChart />
+        <CompanySizeChart />
+        <ScoreDistributionChart />
       </div>
 
       {/* Recent Hot Leads */}

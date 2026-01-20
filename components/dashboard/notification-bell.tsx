@@ -11,6 +11,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Bell, Check } from 'lucide-react'
 import { formatRelativeDate } from '@/lib/utils'
+import { toast } from '@/hooks/use-toast'
 import type { Notification } from '@/types'
 
 export function NotificationBell() {
@@ -60,7 +61,8 @@ export function NotificationBell() {
 
   const markAsRead = async (id: string) => {
     try {
-      await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
+      const response = await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
+      if (!response.ok) throw new Error('Request failed')
 
       setNotifications((prev) =>
         prev.map((n) =>
@@ -70,6 +72,11 @@ export function NotificationBell() {
       setUnreadCount((prev) => Math.max(0, prev - 1))
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to mark notification as read',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -77,7 +84,8 @@ export function NotificationBell() {
     if (unreadCount === 0) return
 
     try {
-      await fetch('/api/notifications/read-all', { method: 'POST' })
+      const response = await fetch('/api/notifications/read-all', { method: 'POST' })
+      if (!response.ok) throw new Error('Request failed')
 
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, read: true }))
@@ -85,6 +93,11 @@ export function NotificationBell() {
       setUnreadCount(0)
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to mark all notifications as read',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -106,10 +119,18 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
+        >
+          <Bell className="h-5 w-5" aria-hidden="true" />
           {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+            <span
+              className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
+              aria-hidden="true"
+            >
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}

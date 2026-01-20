@@ -23,6 +23,7 @@ import { ScoreGauge } from '@/components/leads/score-gauge'
 import { OutcomeButtons } from '@/components/leads/outcome-buttons'
 import { LeadEnrichments } from '@/components/leads/lead-enrichments'
 import { formatRelativeDate, formatAbsoluteDate, getLabelColor } from '@/lib/utils'
+import { toast } from '@/hooks/use-toast'
 import { LEAD_STATUSES } from '@/lib/constants'
 import {
   Mail,
@@ -67,9 +68,21 @@ export function LeadDetailPanel({ lead, onClose, onUpdate }: LeadDetailPanelProp
   const handleRequalify = async () => {
     setRequalifying(true)
     try {
-      await fetch(`/api/leads/${lead.id}/requalify`, { method: 'POST' })
+      const response = await fetch(`/api/leads/${lead.id}/requalify`, { method: 'POST' })
+      if (!response.ok) {
+        throw new Error('Failed to requalify')
+      }
+      toast({
+        title: 'Lead re-qualified',
+        description: 'The lead score has been recalculated.',
+      })
     } catch (error) {
       console.error('Failed to requalify:', error)
+      toast({
+        title: 'Re-qualification failed',
+        description: 'Could not requalify this lead. Please try again.',
+        variant: 'destructive',
+      })
     } finally {
       setRequalifying(false)
     }

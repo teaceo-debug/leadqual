@@ -7,7 +7,8 @@ import { LeadsTable } from '@/components/leads/leads-table'
 import { LeadDetailPanel } from '@/components/leads/lead-detail-panel'
 import { LeadFilters } from '@/components/leads/lead-filters'
 import { Button } from '@/components/ui/button'
-import { Download } from 'lucide-react'
+import { LeadImportDialog } from '@/components/leads/lead-import-dialog'
+import { Download, Upload } from 'lucide-react'
 import type { Lead } from '@/types'
 
 export default function LeadsPage() {
@@ -24,6 +25,7 @@ export default function LeadsPage() {
     total_pages: 0,
   })
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [showImportDialog, setShowImportDialog] = useState(false)
 
   // Get filter values from URL
   const label = searchParams.get('label') || ''
@@ -133,10 +135,16 @@ export default function LeadsPage() {
             Manage and review your qualified leads
           </p>
         </div>
-        <Button onClick={handleExport} variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowImportDialog(true)} variant="outline">
+            <Upload className="mr-2 h-4 w-4" />
+            Import CSV
+          </Button>
+          <Button onClick={handleExport} variant="outline">
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <LeadFilters />
@@ -153,6 +161,12 @@ export default function LeadsPage() {
         lead={selectedLead}
         onClose={handleLeadClose}
         onUpdate={handleLeadUpdate}
+      />
+
+      <LeadImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onSuccess={fetchLeads}
       />
     </div>
   )

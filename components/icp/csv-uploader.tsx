@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import Papa from 'papaparse'
 import { Button } from '@/components/ui/button'
@@ -56,6 +56,16 @@ export function CSVUploader({
   const [error, setError] = useState<string | null>(null)
   const [parsedCSV, setParsedCSV] = useState<ParsedCSV | null>(null)
   const [progress, setProgress] = useState('')
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+      }
+    }
+  }, [])
 
   const normalizeHeader = (header: string): string => {
     const normalized = header.toLowerCase().trim().replace(/[^a-z0-9]/g, '_')
@@ -173,7 +183,7 @@ export function CSVUploader({
       ]
 
       let messageIndex = 0
-      const progressInterval = setInterval(() => {
+      progressIntervalRef.current = setInterval(() => {
         if (messageIndex < progressMessages.length) {
           setProgress(progressMessages[messageIndex])
           messageIndex++
@@ -189,7 +199,10 @@ export function CSVUploader({
         }),
       })
 
-      clearInterval(progressInterval)
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
 
       const data = await response.json()
 

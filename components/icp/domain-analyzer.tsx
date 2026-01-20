@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +22,16 @@ export function DomainAnalyzer({
   const [domain, setDomain] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState('')
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+      }
+    }
+  }, [])
 
   const cleanDomain = (input: string): string => {
     return input
@@ -63,7 +73,7 @@ export function DomainAnalyzer({
       ]
 
       let messageIndex = 0
-      const progressInterval = setInterval(() => {
+      progressIntervalRef.current = setInterval(() => {
         if (messageIndex < progressMessages.length) {
           setProgress(progressMessages[messageIndex])
           messageIndex++
@@ -79,7 +89,10 @@ export function DomainAnalyzer({
         }),
       })
 
-      clearInterval(progressInterval)
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
 
       const data = await response.json()
 

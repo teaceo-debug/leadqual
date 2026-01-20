@@ -34,12 +34,13 @@ export function ScoreGauge({ score, size = 'md', showLabel = false }: ScoreGauge
   }
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1" role="img" aria-label={`Lead score: ${score} out of 100, ${getLabel()}`}>
       <div className="relative" style={{ width: config.dimension, height: config.dimension }}>
         <svg
           className="transform -rotate-90"
           width={config.dimension}
           height={config.dimension}
+          aria-hidden="true"
         >
           {/* Background circle */}
           <circle
