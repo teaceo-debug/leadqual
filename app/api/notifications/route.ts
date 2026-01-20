@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
 
     if (unreadOnly) {
-      query = query.eq('read', false)
+      query = query.is('read_at', null)
     }
 
     const { data: notifications, error } = await query
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('read', false)
+      .is('read_at', null)
 
     return NextResponse.json({
       notifications,

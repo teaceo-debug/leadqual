@@ -17,9 +17,9 @@ export async function POST() {
     // Mark all as read
     const { error } = await supabase
       .from('notifications')
-      .update({ read: true })
+      .update({ read_at: new Date().toISOString() })
       .eq('user_id', user.id)
-      .eq('read', false)
+      .is('read_at', null)
 
     if (error) {
       console.error('Error marking all notifications as read:', error)
