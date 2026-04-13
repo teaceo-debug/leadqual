@@ -7,6 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Plus,
   FileText,
   MoreVertical,
@@ -14,6 +20,12 @@ import {
   Pencil,
   Trash2,
   Copy,
+  UserPlus,
+  Shield,
+  Calendar,
+  Download,
+  Ticket,
+  Sparkles,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -21,13 +33,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { FORM_TEMPLATES } from '@/lib/form-templates'
 import type { Form } from '@/types'
+
+const templateIcons: Record<string, React.ElementType> = {
+  UserPlus, Shield, Calendar, Download, Ticket,
+}
 
 export default function FormsPage() {
   const router = useRouter()
   const [forms, setForms] = useState<Form[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   useEffect(() => {
     fetchForms()
@@ -47,13 +65,24 @@ export default function FormsPage() {
     }
   }
 
-  async function createForm() {
+  async function createFromTemplate(templateId?: string) {
     setCreating(true)
+    setShowTemplates(false)
     try {
+      const template = templateId
+        ? FORM_TEMPLATES.find((t) => t.id === templateId)
+        : null
+
       const res = await fetch('/api/forms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Untitled Form' }),
+        body: JSON.stringify({
+          name: template ? template.name : 'Untitled Form',
+          description: template?.description || null,
+          fields: template?.fields || [],
+          settings: template?.settings || {},
+          branding: template?.branding || {},
+        }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -130,11 +159,62 @@ export default function FormsPage() {
             Build and manage your lead capture forms
           </p>
         </div>
-        <Button onClick={createForm} disabled={creating}>
+        <Button onClick={() => setShowTemplates(true)} disabled={creating}>
           <Plus className="mr-2 h-4 w-4" />
           {creating ? 'Creating...' : 'New Form'}
         </Button>
       </div>
+
+      {/* Template Picker Dialog */}
+      <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Choose a template</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 md:grid-cols-2 mt-2">
+            {/* Blank form option */}
+            <Card
+              className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+              onClick={() => createFromTemplate()}
+            >
+              <CardContent className="flex items-start gap-3 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Blank Form</p>
+                  <p className="text-xs text-muted-foreground">Start from scratch</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Templates */}
+            {FORM_TEMPLATES.map((t) => {
+              const Icon = templateIcons[t.icon] || Sparkles
+              return (
+                <Card
+                  key={t.id}
+                  className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+                  onClick={() => createFromTemplate(t.id)}
+                >
+                  <CardContent className="flex items-start gap-3 p-4">
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                      style={{ backgroundColor: (t.branding.primary_color || '#2563EB') + '18' }}
+                    >
+                      <Icon className="h-5 w-5" style={{ color: t.branding.primary_color }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{t.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {forms.length === 0 ? (
         <Card className="flex flex-col items-center justify-center py-16">
@@ -144,7 +224,7 @@ export default function FormsPage() {
             Create your first form to start capturing and qualifying leads
             automatically.
           </p>
-          <Button onClick={createForm} disabled={creating}>
+          <Button onClick={() => setShowTemplates(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Create Your First Form
           </Button>

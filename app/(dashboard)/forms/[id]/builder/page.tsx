@@ -22,6 +22,7 @@ import {
   Check,
   BarChart3,
   Paintbrush,
+  Zap,
 } from 'lucide-react'
 import type { Form, FormField, FormFieldType, FormBranding, FormFacebookSettings } from '@/types'
 
@@ -192,6 +193,14 @@ export default function FormBuilderPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/forms/${formId}/pixel-health`)}
+          >
+            <Zap className="mr-2 h-4 w-4" />
+            Pixel Health
+          </Button>
           <Button
             variant="outline"
             size="sm"

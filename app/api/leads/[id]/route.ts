@@ -196,6 +196,9 @@ async function firePurchaseCAPI(organizationId: string, lead: Record<string, unk
   if (lead.source_ip) userData.client_ip_address = lead.source_ip
   if (lead.user_agent) userData.client_user_agent = lead.user_agent
 
+  const leadScore = (lead.score as number) || 0
+  const leadTier = (lead.label as string) || 'unscored'
+
   const eventId = `purchase_${lead.id}`
   const payload = {
     data: [{
@@ -204,7 +207,16 @@ async function firePurchaseCAPI(organizationId: string, lead: Record<string, unk
       event_id: eventId,
       action_source: 'website',
       user_data: userData,
-      custom_data: { currency: 'USD' },
+      custom_data: {
+        currency: 'USD',
+        // SCORE FEEDBACK: Send the lead score as the purchase value
+        // Facebook optimizes toward higher-value conversions
+        // A lead that scored 85 and converted is worth more signal than one that scored 45
+        value: leadScore,
+        content_category: leadTier,
+        lead_score: leadScore,
+        lead_tier: leadTier,
+      },
     }],
     ...(fb.test_event_code ? { test_event_code: fb.test_event_code } : {}),
   }

@@ -86,6 +86,7 @@ export async function POST(
 
     // Try to create a lead from the submission data if email exists
     // Data is keyed by field labels, so check common email label patterns
+    let createdLeadId: string | null = null
     const rawEmail = submissionData.email
       || submissionData.Email
       || submissionData['Email Address']
@@ -129,6 +130,7 @@ export async function POST(
       }
 
       if (leadId) {
+        createdLeadId = leadId
         await admin
           .from('form_submissions')
           .update({ lead_id: leadId })
@@ -184,6 +186,20 @@ export async function POST(
       if (tracking.fbp) userData.fbp = tracking.fbp
       if (fbc) userData.fbc = fbc
 
+      // Count match keys for EMQ tracking
+      const matchKeysCount = Object.keys(userData).length
+
+      // Get lead score if available (for Facebook optimization feedback loop)
+      let leadScore = 0
+      let leadTier = 'unscored'
+      if (createdLeadId) {
+        const { data: scoredLead } = await admin.from('leads').select('score, label').eq('id', createdLeadId).single()
+        if (scoredLead) {
+          leadScore = scoredLead.score || 0
+          leadTier = scoredLead.label || 'unscored'
+        }
+      }
+
       const capiPayload = {
         data: [{
           event_name: 'Lead',
@@ -194,7 +210,15 @@ export async function POST(
           user_data: userData,
           custom_data: {
             content_name: 'Form_Submission',
+            content_category: leadTier,
             currency: 'USD',
+            // SCORE FEEDBACK: Facebook uses 'value' to optimize Lookalike
+            // Higher-scoring leads = higher value = Facebook finds more of them
+            value: leadScore,
+            // Custom properties for audience segmentation in Events Manager
+            lead_score: leadScore,
+            lead_tier: leadTier,
+            match_keys_count: matchKeysCount,
           },
         }],
         ...(fb.test_event_code ? { test_event_code: fb.test_event_code } : {}),
@@ -210,9 +234,17 @@ export async function POST(
       ).catch((err) => console.error('CAPI error:', err))
     }
 
+    // Fetch final lead score for client-side event
+    let finalScore = 0
+    if (createdLeadId) {
+      const { data: sl } = await admin.from('leads').select('score').eq('id', createdLeadId).single()
+      if (sl?.score) finalScore = sl.score
+    }
+
     return NextResponse.json({
       success: true,
       submission_id: submission.id,
+      lead_score: finalScore,
       thank_you: {
         title: form.thank_you_title,
         message: form.thank_you_message,

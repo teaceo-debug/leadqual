@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useParams } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
+import { DebugConsole } from '@/components/form-builder/debug-console'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -53,7 +54,9 @@ function splitIntoPages(fields: FormField[]): FormField[][] {
 
 export default function PublicFormPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const slug = params.slug as string
+  const showDebug = searchParams.get('debug') === '1'
 
   const [form, setForm] = useState<Form | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
@@ -64,6 +67,13 @@ export default function PublicFormPage() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [tracking, setTracking] = useState<Record<string, string>>({})
+  const [debugLogs, setDebugLogs] = useState<{ time: string; source: 'system' | 'client' | 'server' | 'gate' | 'pixel' | 'error'; event: string; detail: string }[]>([])
+  const [debugOpen, setDebugOpen] = useState(showDebug)
+  const [gateStatus, setGateStatus] = useState<'pending' | 'qualified' | 'disqualified' | null>(null)
+
+  const addLog = useCallback((source: 'system' | 'client' | 'server' | 'gate' | 'pixel' | 'error', event: string, detail: string) => {
+    setDebugLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), source, event, detail }])
+  }, [])
 
   const pages = useMemo(() => form ? splitIntoPages(form.fields) : [[]], [form])
   const isMultiStep = pages.length > 1
@@ -123,7 +133,8 @@ export default function PublicFormPage() {
       })
 
     setTracking(t)
-  }, [])
+    addLog('system', 'Identifiers', `fbclid:${fbclid ? 'yes' : 'no'} fbp:${fbp ? 'yes' : 'no'} fbc:${fbc ? 'yes' : 'no'} utm:${t.utm_source || 'none'}`)
+  }, [addLog])
 
   // Track view and load Facebook Pixel
   useEffect(() => {
@@ -141,11 +152,11 @@ export default function PublicFormPage() {
         },
       }),
     }).catch(() => {})
+    addLog('system', 'PageView', 'View tracked via server API')
 
     // Load Facebook Pixel
     const fb = form.facebook as { pixel_id?: string } | undefined
     if (fb?.pixel_id) {
-      // Sanitize pixel ID to prevent XSS — pixel IDs are numeric only
       const safePixelId = String(fb.pixel_id).replace(/\D/g, '')
       if (safePixelId) {
         const script = document.createElement('script')
@@ -159,7 +170,11 @@ export default function PublicFormPage() {
           fbq('track','PageView');
         `
         document.head.appendChild(script)
+        addLog('client', 'Pixel Init', `Pixel ID: ${safePixelId}`)
+        addLog('client', 'PageView', 'Client-side PageView fired')
       }
+    } else {
+      addLog('system', 'No Pixel', 'Facebook Pixel not configured for this form')
     }
   }, [form])
 
@@ -251,16 +266,26 @@ export default function PublicFormPage() {
         }),
       })
 
+      addLog('client', 'Submitting', `POST /api/forms/${form.id}/submit`)
+
       if (res.ok) {
         const data = await res.json()
         setThankYou(data.thank_you)
         setSubmitted(true)
+        setGateStatus('qualified')
+        addLog('server', 'Submitted', `ID: ${data.submission_id} | Score: ${data.lead_score || 'pending'}`)
 
-        // Fire Facebook Lead event
+        // Fire Facebook Lead event (with score for value optimization)
         if (typeof window !== 'undefined' && (window as any).fbq) {
           const eventId = data.submission_id
-          ;(window as any).fbq('track', 'Lead', {}, { eventID: eventId })
+          ;(window as any).fbq('track', 'Lead', {
+            content_name: 'Form_Submission',
+            value: data.lead_score || 0,
+            currency: 'USD',
+          }, { eventID: eventId })
+          addLog('client', 'Lead (dedup)', `event_id=${eventId} value=${data.lead_score || 0}`)
         }
+        addLog('pixel', 'SEED UPDATED', 'Lead entered seed audience. Lookalike will learn this profile.')
 
         if (data.thank_you.redirect_url) {
           setTimeout(() => {
@@ -420,6 +445,17 @@ export default function PublicFormPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Debug Console */}
+      {debugOpen && (
+        <DebugConsole
+          logs={debugLogs}
+          tracking={tracking}
+          formData={formData}
+          gateStatus={gateStatus}
+          onClose={() => setDebugOpen(false)}
+        />
+      )}
     </div>
   )
 }

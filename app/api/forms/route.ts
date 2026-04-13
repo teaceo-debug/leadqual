@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
         slug,
         fields: body.fields || [],
         settings: body.settings || {},
+        branding: body.branding || {},
       })
       .select()
       .single()
