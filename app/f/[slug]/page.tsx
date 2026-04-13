@@ -63,6 +63,7 @@ export default function PublicFormPage() {
   const [thankYou, setThankYou] = useState({ title: '', message: '', redirect_url: '' as string | null })
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
+  const [tracking, setTracking] = useState<Record<string, string>>({})
 
   const pages = useMemo(() => form ? splitIntoPages(form.fields) : [[]], [form])
   const isMultiStep = pages.length > 1
@@ -80,6 +81,50 @@ export default function PublicFormPage() {
     fetchForm()
   }, [slug])
 
+  // Capture all tracking identifiers on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const getCookie = (name: string) => {
+      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
+      return match ? decodeURIComponent(match[2]) : ''
+    }
+
+    const fbclid = params.get('fbclid') || ''
+    const fbp = getCookie('_fbp')
+    let fbc = getCookie('_fbc')
+    if (!fbc && fbclid) {
+      fbc = `fb.1.${Date.now()}.${fbclid}`
+    }
+
+    const t: Record<string, string> = {
+      fbclid, fbp, fbc,
+      user_agent: navigator.userAgent,
+      utm_source: params.get('utm_source') || '',
+      utm_medium: params.get('utm_medium') || '',
+      utm_campaign: params.get('utm_campaign') || '',
+      utm_term: params.get('utm_term') || '',
+      utm_content: params.get('utm_content') || '',
+    }
+
+    // Fetch IP + geo
+    fetch('https://ipapi.co/json/')
+      .then((r) => r.json())
+      .then((d) => {
+        t.ip = d.ip || ''
+        t.country_code = (d.country_code || '').toLowerCase()
+        t.zip_code = d.postal || ''
+        setTracking({ ...t })
+      })
+      .catch(() => {
+        fetch('https://api.ipify.org?format=json')
+          .then((r) => r.json())
+          .then((d) => { t.ip = d.ip || ''; setTracking({ ...t }) })
+          .catch(() => setTracking(t))
+      })
+
+    setTracking(t)
+  }, [])
+
   // Track view and load Facebook Pixel
   useEffect(() => {
     if (!form) return
@@ -90,9 +135,9 @@ export default function PublicFormPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         utm: {
-          source: new URLSearchParams(window.location.search).get('utm_source'),
-          medium: new URLSearchParams(window.location.search).get('utm_medium'),
-          campaign: new URLSearchParams(window.location.search).get('utm_campaign'),
+          source: tracking.utm_source,
+          medium: tracking.utm_medium,
+          campaign: tracking.utm_campaign,
         },
       }),
     }).catch(() => {})
@@ -171,14 +216,13 @@ export default function PublicFormPage() {
         }
       }
 
-      // Capture UTM params from URL
-      const urlParams = new URLSearchParams(window.location.search)
+      // UTM from tracking state
       const utm = {
-        source: urlParams.get('utm_source'),
-        medium: urlParams.get('utm_medium'),
-        campaign: urlParams.get('utm_campaign'),
-        term: urlParams.get('utm_term'),
-        content: urlParams.get('utm_content'),
+        source: tracking.utm_source,
+        medium: tracking.utm_medium,
+        campaign: tracking.utm_campaign,
+        term: tracking.utm_term,
+        content: tracking.utm_content,
       }
 
       // Read honeypot
@@ -188,7 +232,19 @@ export default function PublicFormPage() {
       const res = await fetch(`/api/forms/${form.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: labeledData, utm, _honeypot: honeypotValue }),
+        body: JSON.stringify({
+          data: labeledData,
+          utm,
+          _honeypot: honeypotValue,
+          tracking: {
+            fbclid: tracking.fbclid,
+            fbp: tracking.fbp,
+            fbc: tracking.fbc,
+            ip: tracking.ip,
+            country_code: tracking.country_code,
+            zip_code: tracking.zip_code,
+          },
+        }),
       })
 
       if (res.ok) {

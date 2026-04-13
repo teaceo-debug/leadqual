@@ -145,11 +145,44 @@ export async function POST(
     }
 
     // Fire Facebook Conversions API event if configured
+    // Only fires for leads with email (qualified gate — no email = no pixel = clean seed)
     const fb = form.facebook as { pixel_id?: string; access_token?: string; test_event_code?: string } | undefined
     if (fb?.pixel_id && fb?.access_token && email) {
       const crypto = await import('crypto')
-      const hashedEmail = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex')
+      const hash = (v: string) => v ? crypto.createHash('sha256').update(v.toLowerCase().trim()).digest('hex') : ''
       const eventId = submission.id
+      const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ''
+      const tracking = body.tracking || {}
+
+      // Normalize phone: strip non-digits, add US country code if 10 digits
+      const rawPhone = findField(submissionData, ['phone', 'Phone', 'Phone Number', 'phone_number']) || ''
+      const phoneClean = rawPhone.replace(/\D/g, '')
+      const phoneNorm = phoneClean.length === 10 ? '1' + phoneClean : phoneClean
+
+      // Build fbc from fbclid if cookie wasn't captured
+      let fbc = tracking.fbc || ''
+      if (!fbc && tracking.fbclid) {
+        fbc = `fb.1.${Date.now()}.${tracking.fbclid}`
+      }
+
+      // Build user_data with ALL 10 match keys for max EMQ score
+      const userData: Record<string, unknown> = {}
+      // HIGH PRIORITY
+      if (email) userData.em = [hash(email)]
+      if (phoneNorm) userData.ph = [hash(phoneNorm)]
+      const fn = findField(submissionData, ['first_name', 'First Name', 'first name', 'name'])
+      const ln = findField(submissionData, ['last_name', 'Last Name', 'last name'])
+      if (fn) userData.fn = [hash(fn)]
+      if (ln) userData.ln = [hash(ln)]
+      // MEDIUM PRIORITY
+      if (tracking.zip_code) userData.zp = [hash(tracking.zip_code)]
+      if (tracking.country_code) userData.country = [hash(tracking.country_code.toLowerCase())]
+      // BROWSER/DEVICE
+      if (clientIp) userData.client_ip_address = clientIp
+      if (request.headers.get('user-agent')) userData.client_user_agent = request.headers.get('user-agent')
+      // META COOKIES (highest match rate)
+      if (tracking.fbp) userData.fbp = tracking.fbp
+      if (fbc) userData.fbc = fbc
 
       const capiPayload = {
         data: [{
@@ -158,17 +191,17 @@ export async function POST(
           event_id: eventId,
           event_source_url: request.headers.get('referer') || undefined,
           action_source: 'website',
-          user_data: {
-            em: [hashedEmail],
-            client_ip_address: request.headers.get('x-forwarded-for') || undefined,
-            client_user_agent: request.headers.get('user-agent') || undefined,
+          user_data: userData,
+          custom_data: {
+            content_name: 'Form_Submission',
+            currency: 'USD',
           },
         }],
         ...(fb.test_event_code ? { test_event_code: fb.test_event_code } : {}),
       }
 
       fetch(
-        `https://graph.facebook.com/v19.0/${fb.pixel_id}/events?access_token=${fb.access_token}`,
+        `https://graph.facebook.com/v21.0/${fb.pixel_id}/events?access_token=${fb.access_token}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
