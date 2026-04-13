@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerLeadUpdatedWebhook } from '@/lib/webhooks'
+import { createHash } from 'crypto'
 import { z } from 'zod'
 
 const updateLeadSchema = z.object({
@@ -143,6 +145,12 @@ export async function PATCH(
 
       // Trigger lead.updated webhook
       triggerLeadUpdatedWebhook(member.organization_id, lead).catch(console.error)
+
+      // Fire Purchase CAPI when lead is converted
+      // This builds the highest-quality buyer seed audience for Lookalike targeting
+      if (validatedData.status === 'converted' && currentLead.status !== 'converted') {
+        firePurchaseCAPI(member.organization_id, lead).catch(console.error)
+      }
     }
 
     return NextResponse.json({ success: true, lead })
@@ -156,4 +164,59 @@ export async function PATCH(
     console.error('Error updating lead:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Fire a Purchase event to Facebook CAPI when a lead converts
+// This builds the highest-quality seed audience (actual buyers) for Lookalike targeting
+async function firePurchaseCAPI(organizationId: string, lead: Record<string, unknown>) {
+  const admin = createAdminClient()
+
+  // Find forms with Facebook settings for this org
+  const { data: forms } = await admin
+    .from('forms')
+    .select('facebook')
+    .eq('organization_id', organizationId)
+    .not('facebook', 'eq', '{}')
+
+  if (!forms || forms.length === 0) return
+
+  const fb = forms[0].facebook as { pixel_id?: string; access_token?: string; test_event_code?: string }
+  if (!fb?.pixel_id || !fb?.access_token) return
+
+  const hash = (v: string) => v ? createHash('sha256').update(v.toLowerCase().trim()).digest('hex') : ''
+  const email = lead.email as string || ''
+  const phone = ((lead.phone as string) || '').replace(/\D/g, '')
+  const phoneNorm = phone.length === 10 ? '1' + phone : phone
+
+  const userData: Record<string, unknown> = {}
+  if (email) userData.em = [hash(email)]
+  if (phoneNorm) userData.ph = [hash(phoneNorm)]
+  if (lead.first_name) userData.fn = [hash(lead.first_name as string)]
+  if (lead.last_name) userData.ln = [hash(lead.last_name as string)]
+  if (lead.source_ip) userData.client_ip_address = lead.source_ip
+  if (lead.user_agent) userData.client_user_agent = lead.user_agent
+
+  const eventId = `purchase_${lead.id}`
+  const payload = {
+    data: [{
+      event_name: 'Purchase',
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: eventId,
+      action_source: 'website',
+      user_data: userData,
+      custom_data: { currency: 'USD' },
+    }],
+    ...(fb.test_event_code ? { test_event_code: fb.test_event_code } : {}),
+  }
+
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/${fb.pixel_id}/events?access_token=${fb.access_token}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  )
+
+  console.log(`Purchase CAPI fired for lead ${lead.id}:`, await res.json().catch(() => ({})))
 }
