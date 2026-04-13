@@ -36,3 +36,4 @@ Thumbs.db
 # Test files
 *.test.csv
 test-*.csv
+supabase/.temp/
