@@ -235,6 +235,7 @@ export const FORM_FIELD_TYPES = [
   'multiple_choice',
   'dropdown',
   'checkbox',
+  'page_break',
 ] as const
 
 export type FormFieldType = (typeof FORM_FIELD_TYPES)[number]
@@ -243,6 +244,12 @@ export interface FormFieldOption {
   id: string
   label: string
   value: string
+}
+
+export interface FormFieldCondition {
+  field_id: string
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_empty' | 'is_empty'
+  value?: string
 }
 
 export interface FormField {
@@ -259,6 +266,23 @@ export interface FormField {
     max?: number
     pattern?: string
   }
+  conditions?: FormFieldCondition[]
+}
+
+export interface FormBranding {
+  logo_url?: string
+  primary_color?: string
+  background_color?: string
+  text_color?: string
+  font_family?: string
+  border_radius?: string
+  button_text?: string
+}
+
+export interface FormFacebookSettings {
+  pixel_id?: string
+  access_token?: string
+  test_event_code?: string
 }
 
 export interface Form {
@@ -272,10 +296,13 @@ export interface Form {
   status: 'draft' | 'published' | 'archived'
   fields: FormField[]
   settings: Record<string, unknown>
+  branding: FormBranding
+  facebook: FormFacebookSettings
   thank_you_title: string
   thank_you_message: string
   redirect_url: string | null
   submission_count: number
+  view_count: number
 }
 
 export interface FormSubmission {

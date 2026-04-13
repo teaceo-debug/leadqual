@@ -144,6 +144,39 @@ export async function POST(
       }
     }
 
+    // Fire Facebook Conversions API event if configured
+    const fb = form.facebook as { pixel_id?: string; access_token?: string; test_event_code?: string } | undefined
+    if (fb?.pixel_id && fb?.access_token && email) {
+      const crypto = await import('crypto')
+      const hashedEmail = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex')
+      const eventId = submission.id
+
+      const capiPayload = {
+        data: [{
+          event_name: 'Lead',
+          event_time: Math.floor(Date.now() / 1000),
+          event_id: eventId,
+          event_source_url: request.headers.get('referer') || undefined,
+          action_source: 'website',
+          user_data: {
+            em: [hashedEmail],
+            client_ip_address: request.headers.get('x-forwarded-for') || undefined,
+            client_user_agent: request.headers.get('user-agent') || undefined,
+          },
+        }],
+        ...(fb.test_event_code ? { test_event_code: fb.test_event_code } : {}),
+      }
+
+      fetch(
+        `https://graph.facebook.com/v19.0/${fb.pixel_id}/events?access_token=${fb.access_token}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(capiPayload),
+        }
+      ).catch((err) => console.error('CAPI error:', err))
+    }
+
     return NextResponse.json({
       success: true,
       submission_id: submission.id,

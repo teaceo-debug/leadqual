@@ -10,6 +10,7 @@ import {
   List,
   ChevronDown,
   CheckSquare,
+  SeparatorHorizontal,
 } from 'lucide-react'
 import type { FormFieldType } from '@/types'
 
@@ -22,6 +23,7 @@ const fieldTypes: { type: FormFieldType; label: string; icon: React.ElementType 
   { type: 'multiple_choice', label: 'Multiple Choice', icon: List },
   { type: 'dropdown', label: 'Dropdown', icon: ChevronDown },
   { type: 'checkbox', label: 'Checkbox', icon: CheckSquare },
+  { type: 'page_break', label: 'Page Break', icon: SeparatorHorizontal },
 ]
 
 interface FieldPaletteProps {

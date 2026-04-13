@@ -19,7 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { GripVertical, Trash2, Type, AlignLeft, Mail, Phone, Hash, List, ChevronDown, CheckSquare } from 'lucide-react'
+import { GripVertical, Trash2, Type, AlignLeft, Mail, Phone, Hash, List, ChevronDown, CheckSquare, SeparatorHorizontal } from 'lucide-react'
 import type { FormField, FormFieldType } from '@/types'
 
 const fieldIcons: Record<FormFieldType, React.ElementType> = {
@@ -31,6 +31,7 @@ const fieldIcons: Record<FormFieldType, React.ElementType> = {
   multiple_choice: List,
   dropdown: ChevronDown,
   checkbox: CheckSquare,
+  page_break: SeparatorHorizontal,
 }
 
 const fieldLabels: Record<FormFieldType, string> = {
@@ -42,6 +43,7 @@ const fieldLabels: Record<FormFieldType, string> = {
   multiple_choice: 'Multiple Choice',
   dropdown: 'Dropdown',
   checkbox: 'Checkbox',
+  page_break: 'Page Break',
 }
 
 interface SortableFieldProps {

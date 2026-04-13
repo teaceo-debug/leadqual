@@ -73,6 +73,7 @@ export async function PATCH(
     const allowedFields = [
       'name', 'description', 'fields', 'settings', 'status',
       'thank_you_title', 'thank_you_message', 'redirect_url',
+      'branding', 'facebook',
     ]
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }

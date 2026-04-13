@@ -6,15 +6,18 @@ import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Plus, X } from 'lucide-react'
+import { ConditionEditor } from './condition-editor'
 import type { FormField } from '@/types'
 
 interface FieldEditorProps {
   field: FormField
+  allFields: FormField[]
   onChange: (field: FormField) => void
 }
 
-export function FieldEditor({ field, onChange }: FieldEditorProps) {
+export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   const hasOptions = field.type === 'multiple_choice' || field.type === 'dropdown'
+  const isPageBreak = field.type === 'page_break'
 
   function addOption() {
     const options = field.options || []
@@ -39,6 +42,28 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
       ...field,
       options: (field.options || []).filter((opt) => opt.id !== id),
     })
+  }
+
+  if (isPageBreak) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+          Page Break
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          This separates your form into multiple steps. Fields after this break appear on the next page.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="field-label" className="text-xs">Step Title (optional)</Label>
+          <Input
+            id="field-label"
+            value={field.label}
+            onChange={(e) => onChange({ ...field, label: e.target.value })}
+            placeholder="Next Step"
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -105,6 +130,9 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
           </div>
         </>
       )}
+
+      <Separator />
+      <ConditionEditor field={field} allFields={allFields} onChange={onChange} />
     </div>
   )
 }

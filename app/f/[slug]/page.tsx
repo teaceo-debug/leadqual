@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -15,8 +16,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CheckCircle, Loader2 } from 'lucide-react'
-import type { Form, FormField } from '@/types'
+import { CheckCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
+import type { Form, FormField, FormBranding, FormFieldCondition } from '@/types'
+
+// Evaluate if a field's conditions are met
+function evaluateConditions(
+  conditions: FormFieldCondition[] | undefined,
+  formData: Record<string, string>
+): boolean {
+  if (!conditions || conditions.length === 0) return true
+  return conditions.every((c) => {
+    const val = formData[c.field_id] || ''
+    switch (c.operator) {
+      case 'equals': return val === c.value
+      case 'not_equals': return val !== c.value
+      case 'contains': return val.toLowerCase().includes((c.value || '').toLowerCase())
+      case 'not_empty': return val.trim().length > 0
+      case 'is_empty': return val.trim().length === 0
+      default: return true
+    }
+  })
+}
+
+// Split fields into pages by page_break
+function splitIntoPages(fields: FormField[]): FormField[][] {
+  const pages: FormField[][] = [[]]
+  for (const field of fields) {
+    if (field.type === 'page_break') {
+      pages.push([])
+    } else {
+      pages[pages.length - 1].push(field)
+    }
+  }
+  return pages.filter((p) => p.length > 0)
+}
 
 export default function PublicFormPage() {
   const params = useParams()
@@ -29,10 +62,57 @@ export default function PublicFormPage() {
   const [submitted, setSubmitted] = useState(false)
   const [thankYou, setThankYou] = useState({ title: '', message: '', redirect_url: '' as string | null })
   const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(0)
+
+  const pages = useMemo(() => form ? splitIntoPages(form.fields) : [[]], [form])
+  const isMultiStep = pages.length > 1
+  const isLastPage = currentPage >= pages.length - 1
+
+  // Get visible fields on current page (respecting conditions)
+  const visibleFields = useMemo(() => {
+    if (!pages[currentPage]) return []
+    return pages[currentPage].filter((f) => evaluateConditions(f.conditions, formData))
+  }, [pages, currentPage, formData])
+
+  const branding: FormBranding = (form?.branding as FormBranding) || {}
 
   useEffect(() => {
     fetchForm()
   }, [slug])
+
+  // Track view and load Facebook Pixel
+  useEffect(() => {
+    if (!form) return
+
+    // Track view
+    fetch(`/api/forms/${form.id}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        utm: {
+          source: new URLSearchParams(window.location.search).get('utm_source'),
+          medium: new URLSearchParams(window.location.search).get('utm_medium'),
+          campaign: new URLSearchParams(window.location.search).get('utm_campaign'),
+        },
+      }),
+    }).catch(() => {})
+
+    // Load Facebook Pixel
+    const fb = form.facebook as { pixel_id?: string } | undefined
+    if (fb?.pixel_id) {
+      const script = document.createElement('script')
+      script.innerHTML = `
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+        (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init','${fb.pixel_id}');
+        fbq('track','PageView');
+      `
+      document.head.appendChild(script)
+    }
+  }, [form])
 
   async function fetchForm() {
     try {
@@ -54,9 +134,29 @@ export default function PublicFormPage() {
     setFormData({ ...formData, [fieldId]: value })
   }
 
+  function nextPage() {
+    if (currentPage < pages.length - 1) {
+      setCurrentPage(currentPage + 1)
+      window.scrollTo(0, 0)
+    }
+  }
+
+  function prevPage() {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1)
+      window.scrollTo(0, 0)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form) return
+
+    // If multi-step and not last page, go to next page
+    if (isMultiStep && !isLastPage) {
+      nextPage()
+      return
+    }
 
     setSubmitting(true)
     setError(null)
@@ -64,8 +164,9 @@ export default function PublicFormPage() {
       // Build labeled data using field labels as keys
       const labeledData: Record<string, string> = {}
       for (const field of form.fields) {
+        if (field.type === 'page_break') continue
         const value = formData[field.id]
-        if (value) {
+        if (value && evaluateConditions(field.conditions, formData)) {
           labeledData[field.label] = value
         }
       }
@@ -80,7 +181,7 @@ export default function PublicFormPage() {
         content: urlParams.get('utm_content'),
       }
 
-      // Read honeypot value from the hidden input
+      // Read honeypot
       const formEl = e.target as HTMLFormElement
       const honeypotValue = (formEl.elements.namedItem('_honeypot') as HTMLInputElement)?.value || ''
 
@@ -94,6 +195,12 @@ export default function PublicFormPage() {
         const data = await res.json()
         setThankYou(data.thank_you)
         setSubmitted(true)
+
+        // Fire Facebook Lead event
+        if (typeof window !== 'undefined' && (window as any).fbq) {
+          const eventId = data.submission_id
+          ;(window as any).fbq('track', 'Lead', {}, { eventID: eventId })
+        }
 
         if (data.thank_you.redirect_url) {
           setTimeout(() => {
@@ -112,7 +219,7 @@ export default function PublicFormPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: branding.background_color }}>
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -120,7 +227,7 @@ export default function PublicFormPage() {
 
   if (error && !form) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: branding.background_color }}>
         <p className="text-muted-foreground">{error}</p>
       </div>
     )
@@ -128,11 +235,14 @@ export default function PublicFormPage() {
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-        <Card className="w-full max-w-md">
+      <div
+        className="flex min-h-screen items-center justify-center p-4"
+        style={{ backgroundColor: branding.background_color, fontFamily: branding.font_family }}
+      >
+        <Card className="w-full max-w-md" style={{ borderRadius: branding.border_radius }}>
           <CardContent className="flex flex-col items-center py-12 text-center">
-            <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">
+            <CheckCircle className="h-16 w-16 mb-4" style={{ color: branding.primary_color || '#22c55e' }} />
+            <h2 className="text-2xl font-bold mb-2" style={{ color: branding.text_color }}>
               {thankYou.title || 'Thank you!'}
             </h2>
             <p className="text-muted-foreground">
@@ -146,16 +256,45 @@ export default function PublicFormPage() {
 
   if (!form) return null
 
+  const progressPercent = isMultiStep
+    ? Math.round(((currentPage + 1) / pages.length) * 100)
+    : undefined
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-lg">
+    <div
+      className="flex min-h-screen items-center justify-center p-4"
+      style={{ backgroundColor: branding.background_color || '#f9fafb', fontFamily: branding.font_family }}
+    >
+      <Card className="w-full max-w-lg" style={{ borderRadius: branding.border_radius }}>
         <CardContent className="py-8 px-6">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold">{form.name}</h1>
+          {branding.logo_url && (
+            <div className="flex justify-center mb-4">
+              <img src={branding.logo_url} alt="" className="h-10 object-contain" />
+            </div>
+          )}
+
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold" style={{ color: branding.text_color }}>
+              {form.name}
+            </h1>
             {form.description && (
               <p className="text-muted-foreground mt-1">{form.description}</p>
             )}
           </div>
+
+          {isMultiStep && (
+            <div className="mb-6 space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Step {currentPage + 1} of {pages.length}</span>
+                <span>{progressPercent}%</span>
+              </div>
+              <Progress
+                value={progressPercent}
+                className="h-2"
+                style={{ '--progress-color': branding.primary_color } as React.CSSProperties}
+              />
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Honeypot */}
@@ -166,13 +305,13 @@ export default function PublicFormPage() {
               autoComplete="off"
             />
 
-            {form.fields.map((field) => (
+            {visibleFields.map((field) => (
               <div key={field.id} className="space-y-1.5">
-                <Label>
+                <Label style={{ color: branding.text_color }}>
                   {field.label}
                   {field.required && <span className="text-destructive ml-1">*</span>}
                 </Label>
-                {renderFormField(field, formData[field.id] || '', (v) => updateField(field.id, v))}
+                {renderFormField(field, formData[field.id] || '', (v) => updateField(field.id, v), branding)}
               </div>
             ))}
 
@@ -180,16 +319,44 @@ export default function PublicFormPage() {
               <p className="text-sm text-destructive">{error}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit'
+            <div className="flex gap-3">
+              {isMultiStep && currentPage > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={prevPage}
+                  style={{ borderRadius: branding.border_radius }}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
               )}
-            </Button>
+
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={submitting}
+                style={{
+                  backgroundColor: branding.primary_color,
+                  borderRadius: branding.border_radius,
+                }}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : isMultiStep && !isLastPage ? (
+                  <>
+                    Next
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                ) : (
+                  branding.button_text || 'Submit'
+                )}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -200,71 +367,45 @@ export default function PublicFormPage() {
 function renderFormField(
   field: FormField,
   value: string,
-  onChange: (value: string) => void
+  onChange: (value: string) => void,
+  branding: FormBranding
 ) {
+  const inputStyle = { borderRadius: branding.border_radius }
+
   switch (field.type) {
     case 'short_text':
       return (
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || ''}
-          required={field.required}
-        />
+        <Input value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || ''} required={field.required} style={inputStyle} />
       )
     case 'long_text':
       return (
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || ''}
-          required={field.required}
-          rows={3}
-        />
+        <Textarea value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || ''} required={field.required} rows={3} style={inputStyle} />
       )
     case 'email':
       return (
-        <Input
-          type="email"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || 'email@example.com'}
-          required={field.required}
-        />
+        <Input type="email" value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || 'email@example.com'} required={field.required} style={inputStyle} />
       )
     case 'phone':
       return (
-        <Input
-          type="tel"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || '(555) 000-0000'}
-          required={field.required}
-        />
+        <Input type="tel" value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || '(555) 000-0000'} required={field.required} style={inputStyle} />
       )
     case 'number':
       return (
-        <Input
-          type="number"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || '0'}
-          required={field.required}
-        />
+        <Input type="number" value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || '0'} required={field.required} style={inputStyle} />
       )
     case 'multiple_choice':
       return (
         <div className="space-y-2">
           {(field.options || []).map((option) => (
             <label key={option.id} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name={field.id}
-                value={option.value}
-                checked={value === option.value}
-                onChange={() => onChange(option.value)}
-                className="h-4 w-4"
-              />
+              <input type="radio" name={field.id} value={option.value}
+                checked={value === option.value} onChange={() => onChange(option.value)} className="h-4 w-4"
+                style={{ accentColor: branding.primary_color }} />
               <span className="text-sm">{option.label}</span>
             </label>
           ))}
@@ -273,14 +414,12 @@ function renderFormField(
     case 'dropdown':
       return (
         <Select value={value} onValueChange={onChange}>
-          <SelectTrigger>
+          <SelectTrigger style={inputStyle}>
             <SelectValue placeholder={field.placeholder || 'Select...'} />
           </SelectTrigger>
           <SelectContent>
             {(field.options || []).map((option) => (
-              <SelectItem key={option.id} value={option.value}>
-                {option.label}
-              </SelectItem>
+              <SelectItem key={option.id} value={option.value}>{option.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -288,10 +427,7 @@ function renderFormField(
     case 'checkbox':
       return (
         <div className="flex items-center gap-2">
-          <Checkbox
-            checked={value === 'true'}
-            onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
-          />
+          <Checkbox checked={value === 'true'} onCheckedChange={(c) => onChange(c ? 'true' : 'false')} />
           <span className="text-sm">{field.placeholder || 'I agree'}</span>
         </div>
       )
