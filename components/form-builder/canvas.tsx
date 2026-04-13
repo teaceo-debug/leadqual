@@ -143,15 +143,6 @@ export function Canvas({
     }
   }
 
-  if (fields.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 rounded-lg border-2 border-dashed text-muted-foreground">
-        <p className="text-sm font-medium mb-1">No fields yet</p>
-        <p className="text-xs">Add fields from the panel on the left</p>
-      </div>
-    )
-  }
-
   return (
     <DndContext
       sensors={sensors}
@@ -159,17 +150,24 @@ export function Canvas({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2">
-          {fields.map((field) => (
-            <SortableField
-              key={field.id}
-              field={field}
-              isSelected={selectedFieldId === field.id}
-              onSelect={() => onSelectField(field.id)}
-              onDelete={() => onDeleteField(field.id)}
-            />
-          ))}
-        </div>
+        {fields.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 rounded-lg border-2 border-dashed text-muted-foreground">
+            <p className="text-sm font-medium mb-1">No fields yet</p>
+            <p className="text-xs">Add fields from the panel on the left</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {fields.map((field) => (
+              <SortableField
+                key={field.id}
+                field={field}
+                isSelected={selectedFieldId === field.id}
+                onSelect={() => onSelectField(field.id)}
+                onDelete={() => onDeleteField(field.id)}
+              />
+            ))}
+          </div>
+        )}
       </SortableContext>
     </DndContext>
   )

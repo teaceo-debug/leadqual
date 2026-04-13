@@ -59,6 +59,7 @@ export default function PublicFormPage() {
     if (!form) return
 
     setSubmitting(true)
+    setError(null)
     try {
       // Build labeled data using field labels as keys
       const labeledData: Record<string, string> = {}
@@ -79,10 +80,14 @@ export default function PublicFormPage() {
         content: urlParams.get('utm_content'),
       }
 
+      // Read honeypot value from the hidden input
+      const formEl = e.target as HTMLFormElement
+      const honeypotValue = (formEl.elements.namedItem('_honeypot') as HTMLInputElement)?.value || ''
+
       const res = await fetch(`/api/forms/${form.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: labeledData, utm }),
+        body: JSON.stringify({ data: labeledData, utm, _honeypot: honeypotValue }),
       })
 
       if (res.ok) {

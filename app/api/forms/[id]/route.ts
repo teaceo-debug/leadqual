@@ -5,9 +5,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // GET /api/forms/[id] - Get a single form
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -29,7 +30,7 @@ export async function GET(
     const { data: form, error } = await admin
       .from('forms')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', membership.organization_id)
       .single()
 
@@ -47,9 +48,10 @@ export async function GET(
 // PATCH /api/forms/[id] - Update a form
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -76,6 +78,17 @@ export async function PATCH(
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
+        // Validate redirect_url is a proper URL
+        if (field === 'redirect_url' && body[field]) {
+          try {
+            const url = new URL(body[field])
+            if (!['http:', 'https:'].includes(url.protocol)) {
+              return NextResponse.json({ error: 'redirect_url must be an http or https URL' }, { status: 400 })
+            }
+          } catch {
+            return NextResponse.json({ error: 'redirect_url must be a valid URL' }, { status: 400 })
+          }
+        }
         updates[field] = body[field]
       }
     }
@@ -84,7 +97,7 @@ export async function PATCH(
     const { data: form, error } = await admin
       .from('forms')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', membership.organization_id)
       .select()
       .single()
@@ -104,9 +117,10 @@ export async function PATCH(
 // DELETE /api/forms/[id] - Delete a form
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -128,7 +142,7 @@ export async function DELETE(
     const { error } = await admin
       .from('forms')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', membership.organization_id)
 
     if (error) {

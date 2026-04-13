@@ -67,9 +67,14 @@ export default function FormsPage() {
   }
 
   async function deleteForm(id: string) {
+    if (!window.confirm('Are you sure you want to delete this form? All submissions will also be deleted.')) {
+      return
+    }
     try {
-      await fetch(`/api/forms/${id}`, { method: 'DELETE' })
-      setForms(forms.filter((f) => f.id !== id))
+      const res = await fetch(`/api/forms/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setForms(forms.filter((f) => f.id !== id))
+      }
     } catch (error) {
       console.error('Error deleting form:', error)
     }

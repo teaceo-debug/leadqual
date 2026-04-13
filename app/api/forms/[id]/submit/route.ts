@@ -1,24 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Find a field value by checking multiple possible label names
+function findField(data: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    if (data[key]) return String(data[key])
+  }
+  return null
+}
+
+// Basic email format check
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+const MAX_SUBMISSION_SIZE = 50_000 // 50KB
+
 // POST /api/forms/[id]/submit - Public form submission (no auth required)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const admin = createAdminClient()
 
     // Fetch the form
     const { data: form, error: formError } = await admin
       .from('forms')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('status', 'published')
       .single()
 
     if (formError || !form) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 })
+    }
+
+    const contentLength = request.headers.get('content-length')
+    if (contentLength && parseInt(contentLength) > MAX_SUBMISSION_SIZE) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
     }
 
     const body = await request.json()
@@ -60,32 +81,57 @@ export async function POST(
     // Increment submission count
     await admin
       .from('forms')
-      .update({ submission_count: (form.submission_count || 0) + 1 })
+      .update({ submission_count: (form.submission_count || 0) + 1, updated_at: new Date().toISOString() })
       .eq('id', form.id)
 
     // Try to create a lead from the submission data if email exists
-    const email = submissionData.email || submissionData.Email
+    // Data is keyed by field labels, so check common email label patterns
+    const rawEmail = submissionData.email
+      || submissionData.Email
+      || submissionData['Email Address']
+      || submissionData['email_address']
+      || Object.entries(submissionData).find(([k]) => k.toLowerCase().includes('email'))?.[1]
+    const email = typeof rawEmail === 'string' && isValidEmail(rawEmail) ? rawEmail : null
+
     if (email) {
-      const { data: lead } = await admin
+      // Upsert: find existing lead or create new one to avoid duplicates
+      const { data: existingLead } = await admin
         .from('leads')
-        .insert({
-          organization_id: form.organization_id,
-          email,
-          first_name: submissionData.first_name || submissionData['First Name'] || null,
-          last_name: submissionData.last_name || submissionData['Last Name'] || null,
-          phone: submissionData.phone || submissionData.Phone || null,
-          company_name: submissionData.company_name || submissionData['Company'] || null,
-          source_ip: request.headers.get('x-forwarded-for'),
-          user_agent: request.headers.get('user-agent'),
-          referrer: request.headers.get('referer'),
-        })
         .select('id')
+        .eq('organization_id', form.organization_id)
+        .eq('email', email)
+        .limit(1)
         .single()
 
-      if (lead) {
+      let leadId: string | null = existingLead?.id || null
+
+      if (!leadId) {
+        const { data: newLead, error: leadError } = await admin
+          .from('leads')
+          .insert({
+            organization_id: form.organization_id,
+            email,
+            first_name: findField(submissionData, ['first_name', 'First Name', 'first name', 'name']),
+            last_name: findField(submissionData, ['last_name', 'Last Name', 'last name']),
+            phone: findField(submissionData, ['phone', 'Phone', 'Phone Number', 'phone_number']),
+            company_name: findField(submissionData, ['company_name', 'Company', 'Company Name', 'company']),
+            source_ip: request.headers.get('x-forwarded-for'),
+            user_agent: request.headers.get('user-agent'),
+            referrer: request.headers.get('referer'),
+          })
+          .select('id')
+          .single()
+
+        if (leadError) {
+          console.error('Error creating lead:', leadError)
+        }
+        leadId = newLead?.id || null
+      }
+
+      if (leadId) {
         await admin
           .from('form_submissions')
-          .update({ lead_id: lead.id })
+          .update({ lead_id: leadId })
           .eq('id', submission.id)
 
         // Trigger qualification
@@ -93,7 +139,7 @@ export async function POST(
         fetch(`${appUrl}/api/qualify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ leadId: lead.id }),
+          body: JSON.stringify({ leadId }),
         }).catch(() => {})
       }
     }

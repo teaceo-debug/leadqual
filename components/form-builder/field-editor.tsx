@@ -21,7 +21,7 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
     const id = crypto.randomUUID()
     onChange({
       ...field,
-      options: [...options, { id, label: `Option ${options.length + 1}`, value: `option_${options.length + 1}` }],
+      options: [...options, { id, label: `Option ${options.length + 1}`, value: id }],
     })
   }
 
@@ -29,7 +29,7 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
     onChange({
       ...field,
       options: (field.options || []).map((opt) =>
-        opt.id === id ? { ...opt, label, value: label.toLowerCase().replace(/\s+/g, '_') } : opt
+        opt.id === id ? { ...opt, label } : opt
       ),
     })
   }
