@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { AlertCircle, Copy, Check, ExternalLink } from 'lucide-react'
+import { AlertCircle, Copy, Check, ExternalLink, Key, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 import type { Organization } from '@/types'
 
 export default function SettingsPage() {
@@ -275,6 +276,30 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* API Keys */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            API Keys
+          </CardTitle>
+          <CardDescription>
+            Create and manage API keys for programmatic access
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/settings/api-keys">
+            <Button variant="outline" className="w-full justify-between">
+              <span>Manage API Keys</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-2">
+            Create secret API keys for secure server-to-server integration
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Integration */}
       <Card>
         <CardHeader>
@@ -285,7 +310,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Public API Key</Label>
+            <Label>Public API Key (for form embedding)</Label>
             <div className="flex gap-2">
               <Input
                 value={organization.public_api_key}

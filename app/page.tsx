@@ -76,23 +76,12 @@ function useCounter(target: number, duration: number = 2000) {
   return { count, ref }
 }
 
-// Section wrapper with fade-in animation
-function AnimatedSection({ children, className = '', delay = 0, id }: { children: React.ReactNode; className?: string; delay?: number; id?: string }) {
-  const ref = useRef(null)
-  const isInView = useInView(ref, { once: true, margin: '-100px' })
-
+// Section wrapper - simplified to avoid hydration issues
+function AnimatedSection({ children, className = '', id }: { children: React.ReactNode; className?: string; delay?: number; id?: string }) {
   return (
-    <motion.section
-      ref={ref}
-      id={id}
-      initial="hidden"
-      animate={isInView ? 'visible' : 'hidden'}
-      variants={fadeInUp}
-      transition={{ duration: 0.6, delay }}
-      className={className}
-    >
+    <section id={id} className={className}>
       {children}
-    </motion.section>
+    </section>
   )
 }
 
@@ -256,7 +245,13 @@ const companyLogos = [
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
+
+  // Fix for Framer Motion hydration - ensure animations run after mount
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -324,12 +319,12 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             {/* Left: Content */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={isMounted ? { opacity: 0, x: -20 } : false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
             >
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={isMounted ? { opacity: 0, y: 10 } : false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
                 className="inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-4 py-1.5 text-sm font-medium text-primary mb-6"
@@ -339,7 +334,7 @@ export default function LandingPage() {
               </motion.div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight">
-                Qualify B2B leads{' '}
+                Qualify leads{' '}
                 <span className="gradient-text">instantly</span>{' '}
                 with AI
               </h1>
@@ -371,7 +366,7 @@ export default function LandingPage() {
 
             {/* Right: Dashboard Mockup */}
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
+              initial={isMounted ? { opacity: 0, x: 20 } : false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
               className="relative"
@@ -390,7 +385,7 @@ export default function LandingPage() {
                     <div className="space-y-4">
                       {/* Hot Lead */}
                       <motion.div
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={isMounted ? { opacity: 0, x: -10 } : false}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.5 }}
                         className="flex items-center justify-between p-4 rounded-xl bg-success/10 border border-success/20 score-hot"
@@ -411,7 +406,7 @@ export default function LandingPage() {
 
                       {/* Warm Lead */}
                       <motion.div
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={isMounted ? { opacity: 0, x: -10 } : false}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.6 }}
                         className="flex items-center justify-between p-4 rounded-xl bg-warning/10 border border-warning/20"
@@ -432,7 +427,7 @@ export default function LandingPage() {
 
                       {/* Cold Lead */}
                       <motion.div
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={isMounted ? { opacity: 0, x: -10 } : false}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.7 }}
                         className="flex items-center justify-between p-4 rounded-xl bg-muted"
@@ -485,12 +480,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-12 lg:gap-20">
             {/* Problem */}
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-            >
+            <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-destructive/10 border border-destructive/20 px-4 py-1.5 text-sm font-medium text-destructive mb-6">
                 <XCircle className="h-4 w-4" />
                 The Problem
@@ -500,27 +490,21 @@ export default function LandingPage() {
               </h2>
               <div className="space-y-4">
                 {problems.map((problem, i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    variants={fadeInUp}
                     className="flex items-start gap-4 p-4 rounded-xl bg-muted/50"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive flex-shrink-0">
                       <problem.icon className="h-5 w-5" />
                     </div>
                     <p className="text-muted-foreground pt-2">{problem.text}</p>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Solution */}
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-            >
+            <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-success/10 border border-success/20 px-4 py-1.5 text-sm font-medium text-success mb-6">
                 <CheckCircle className="h-4 w-4" />
                 The Solution
@@ -530,19 +514,18 @@ export default function LandingPage() {
               </h2>
               <div className="space-y-4">
                 {solutions.map((solution, i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    variants={fadeInUp}
                     className="flex items-start gap-4 p-4 rounded-xl bg-success/5 border border-success/10"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success flex-shrink-0">
                       <solution.icon className="h-5 w-5" />
                     </div>
                     <p className="pt-2">{solution.text}</p>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </AnimatedSection>
@@ -559,12 +542,8 @@ export default function LandingPage() {
 
           <div className="max-w-3xl mx-auto">
             {steps.map((step, i) => (
-              <motion.div
+              <div
                 key={i}
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
                 className="relative flex gap-6 pb-12 last:pb-0"
               >
                 {/* Timeline line */}
@@ -583,7 +562,7 @@ export default function LandingPage() {
                   <h3 className="text-xl font-semibold mt-1">{step.title}</h3>
                   <p className="text-muted-foreground mt-2">{step.description}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -601,13 +580,7 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
             {/* Large card - AI Scoring */}
-            <motion.div
-              variants={scaleIn}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              className="col-span-2 row-span-2"
-            >
+            <div className="col-span-2 row-span-2">
               <Card className="h-full card-glow hover:border-primary/30 transition-colors">
                 <CardContent className="p-6 h-full flex flex-col">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
@@ -657,17 +630,10 @@ export default function LandingPage() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
             {/* Medium tall - ICP Config */}
-            <motion.div
-              variants={scaleIn}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="col-span-1 row-span-2"
-            >
+            <div className="col-span-1 row-span-2">
               <Card className="h-full card-glow hover:border-primary/30 transition-colors">
                 <CardContent className="p-5 h-full flex flex-col">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary mb-3">
@@ -686,12 +652,9 @@ export default function LandingPage() {
                           <span className="text-primary">{[80, 60, 90][i]}%</span>
                         </div>
                         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <motion.div
+                          <div
                             className="h-full bg-primary rounded-full"
-                            initial={{ width: 0 }}
-                            whileInView={{ width: `${[80, 60, 90][i]}%` }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.3 + i * 0.1, duration: 0.6 }}
+                            style={{ width: `${[80, 60, 90][i]}%` }}
                           />
                         </div>
                       </div>
@@ -699,17 +662,10 @@ export default function LandingPage() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
             {/* Medium wide - Dashboard */}
-            <motion.div
-              variants={scaleIn}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="col-span-1 row-span-2"
-            >
+            <div className="col-span-1 row-span-2">
               <Card className="h-full card-glow hover:border-primary/30 transition-colors">
                 <CardContent className="p-5 h-full flex flex-col">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary mb-3">
@@ -722,19 +678,16 @@ export default function LandingPage() {
                   {/* Mini chart visual */}
                   <div className="mt-4 flex items-end justify-between gap-1 h-20">
                     {[40, 65, 45, 80, 55, 70, 85].map((height, i) => (
-                      <motion.div
+                      <div
                         key={i}
                         className="flex-1 bg-primary/20 rounded-t"
-                        initial={{ height: 0 }}
-                        whileInView={{ height: `${height}%` }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.4 + i * 0.05, duration: 0.4 }}
+                        style={{ height: `${height}%` }}
                       />
                     ))}
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
             {/* Small cards */}
             {[
@@ -743,14 +696,7 @@ export default function LandingPage() {
               { icon: Moon, title: 'Dark Mode', desc: 'Easy on the eyes' },
               { icon: Webhook, title: 'API Access', desc: 'Coming soon', comingSoon: true },
             ].map((feature, i) => (
-              <motion.div
-                key={i}
-                variants={scaleIn}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                transition={{ delay: 0.3 + i * 0.05 }}
-              >
+              <div key={i}>
                 <Card className={`h-full card-glow hover:border-primary/30 transition-colors ${feature.comingSoon ? 'opacity-60' : ''}`}>
                   <CardContent className="p-4">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary mb-2">
@@ -760,7 +706,7 @@ export default function LandingPage() {
                     <p className="text-xs text-muted-foreground mt-1">{feature.desc}</p>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -795,15 +741,9 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <motion.div
-            variants={staggerContainer}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto"
-          >
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {testimonials.map((testimonial, i) => (
-              <motion.div key={i} variants={fadeInUp}>
+              <div key={i}>
                 <Card className="h-full card-glow hover:border-primary/30 transition-all hover:-translate-y-1">
                   <CardContent className="p-6">
                     <div className="flex gap-1 mb-4">
@@ -825,9 +765,9 @@ export default function LandingPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </AnimatedSection>
 
@@ -843,13 +783,7 @@ export default function LandingPage() {
 
           <div className="max-w-2xl mx-auto space-y-4">
             {faqs.map((faq, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-              >
+              <div key={i}>
                 <Card className="overflow-hidden">
                   <button
                     onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -859,21 +793,19 @@ export default function LandingPage() {
                     <span className="font-medium pr-4">{faq.question}</span>
                     <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                   </button>
-                  <motion.div
-                    initial={false}
-                    animate={{
+                  <div
+                    className="overflow-hidden transition-all duration-200"
+                    style={{
                       height: openFaq === i ? 'auto' : 0,
                       opacity: openFaq === i ? 1 : 0,
                     }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
                   >
                     <div className="p-4 pt-0 text-muted-foreground">
                       {faq.answer}
                     </div>
-                  </motion.div>
+                  </div>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -882,11 +814,7 @@ export default function LandingPage() {
       {/* Final CTA */}
       <AnimatedSection className="py-20 md:py-32 cta-gradient text-white">
         <div className="container mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
+          <div>
             <h2 className="text-3xl md:text-5xl font-bold">
               Ready to close more deals?
             </h2>
@@ -915,7 +843,7 @@ export default function LandingPage() {
                 256-bit SSL
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </AnimatedSection>
 
@@ -929,7 +857,7 @@ export default function LandingPage() {
                 <Logo size="md" />
               </Link>
               <p className="text-sm text-muted-foreground max-w-xs">
-                AI-powered lead qualification for B2B sales teams. Focus on the leads that matter.
+                AI-powered lead qualification for sales teams. Focus on the leads that matter.
               </p>
               <div className="flex gap-4 mt-6">
                 <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

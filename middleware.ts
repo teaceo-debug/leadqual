@@ -1,7 +1,21 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Routes that require auth check
+const protectedRoutes = ['/dashboard', '/leads', '/icp', '/team', '/webhooks', '/settings', '/form-settings', '/forms']
+const authRoutes = ['/login', '/signup', '/forgot-password']
+
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Skip auth check for public routes (landing page, form, API, etc.)
+  const needsAuth = protectedRoutes.some((route) => pathname.startsWith(route))
+  const isAuthRoute = authRoutes.some((route) => pathname === route)
+
+  if (!needsAuth && !isAuthRoute) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -58,21 +72,14 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
+  // Protected routes - redirect to login if not authenticated
+  if (needsAuth && !user) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Auth routes - redirect to dashboard if already logged in
-  if (
-    request.nextUrl.pathname === '/login' ||
-    request.nextUrl.pathname === '/signup'
-  ) {
-    if (user) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
+  if (isAuthRoute && user) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response

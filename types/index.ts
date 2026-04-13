@@ -181,3 +181,133 @@ export interface PaginatedResponse<T> {
     total_pages: number
   }
 }
+
+// API Key types
+export type APIKeyScope = 'leads:read' | 'leads:write' | 'icp:read' | 'analytics:read'
+
+export interface APIKey {
+  id: string
+  organization_id: string
+  name: string
+  key_hash: string
+  key_prefix: string
+  scopes: APIKeyScope[]
+  rate_limit: number
+  is_active: boolean
+  last_used_at: string | null
+  expires_at: string | null
+  created_at: string
+  created_by: string | null
+  revoked_at: string | null
+  revoked_by: string | null
+}
+
+export interface APIUsage {
+  id: string
+  api_key_id: string
+  organization_id: string
+  endpoint: string
+  method: string
+  status_code: number
+  response_time_ms: number | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
+}
+
+export interface APIUsageStats {
+  total_requests: number
+  successful_requests: number
+  failed_requests: number
+  rate_limited_requests: number
+  average_response_time_ms: number
+  requests_by_day: { date: string; count: number }[]
+  requests_by_endpoint: { endpoint: string; count: number }[]
+}
+
+// Form builder types
+export const FORM_FIELD_TYPES = [
+  'short_text',
+  'long_text',
+  'email',
+  'phone',
+  'number',
+  'multiple_choice',
+  'dropdown',
+  'checkbox',
+] as const
+
+export type FormFieldType = (typeof FORM_FIELD_TYPES)[number]
+
+export interface FormFieldOption {
+  id: string
+  label: string
+  value: string
+}
+
+export interface FormField {
+  id: string
+  type: FormFieldType
+  label: string
+  placeholder?: string
+  required: boolean
+  options?: FormFieldOption[]
+  validation?: {
+    min_length?: number
+    max_length?: number
+    min?: number
+    max?: number
+    pattern?: string
+  }
+}
+
+export interface Form {
+  id: string
+  created_at: string
+  updated_at: string
+  organization_id: string
+  name: string
+  description: string | null
+  slug: string
+  status: 'draft' | 'published' | 'archived'
+  fields: FormField[]
+  settings: Record<string, unknown>
+  thank_you_title: string
+  thank_you_message: string
+  redirect_url: string | null
+  submission_count: number
+}
+
+export interface FormSubmission {
+  id: string
+  created_at: string
+  form_id: string
+  organization_id: string
+  data: Record<string, unknown>
+  source_ip: string | null
+  user_agent: string | null
+  referrer: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  lead_id: string | null
+  qualification_status: 'pending' | 'processing' | 'completed' | 'skipped'
+}
+
+// API Response types for public API
+export interface APIResponse<T> {
+  data: T
+  meta?: {
+    page?: number
+    per_page?: number
+    total?: number
+  }
+}
+
+export interface APIError {
+  error: {
+    code: string
+    message: string
+    details?: Record<string, unknown>
+  }
+}

@@ -3,7 +3,7 @@
  * Captures click IDs, UTM parameters, and user engagement for ML lead scoring
  *
  * Usage: Add to your website before </body>:
- * <script src="https://www.leadsscore.com/tracker.js" data-org="YOUR_ORG_ID"></script>
+ * <script src="https://www.leadscores.com/tracker.js" data-org="YOUR_ORG_ID"></script>
  */
 
 (function() {
@@ -11,7 +11,7 @@
 
   // Configuration
   const TRACKER_VERSION = '1.0.0';
-  const API_BASE = 'https://www.leadsscore.com/api/track';
+  const API_BASE = 'https://www.leadscores.com/api/track';
   const STORAGE_KEY = 'ls_tracking';
   const SESSION_KEY = 'ls_session';
   const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes

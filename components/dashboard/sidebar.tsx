@@ -13,6 +13,7 @@ import {
   Settings,
   HelpCircle,
   Zap,
+  Blocks,
 } from 'lucide-react'
 
 const navigation = [
@@ -24,10 +25,16 @@ const navigation = [
     ],
   },
   {
+    name: 'Forms',
+    items: [
+      { name: 'Form Builder', href: '/forms', icon: Blocks },
+      { name: 'Form Settings', href: '/form-settings', icon: FileText },
+    ],
+  },
+  {
     name: 'Configure',
     items: [
       { name: 'ICP Criteria', href: '/icp', icon: Target },
-      { name: 'Form Settings', href: '/form-settings', icon: FileText },
       { name: 'Webhooks', href: '/webhooks', icon: Webhook },
     ],
   },
