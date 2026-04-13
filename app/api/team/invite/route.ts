@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
 import crypto from 'crypto'
 
@@ -57,8 +58,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    // Check if user is already a member
-    const { data: existingUsers } = await supabase.auth.admin.listUsers()
+    // Check if user is already a member (requires admin client for auth.admin)
+    const adminClient = createAdminClient()
+    const { data: existingUsers } = await adminClient.auth.admin.listUsers()
     const existingUser = existingUsers?.users.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase()
     )

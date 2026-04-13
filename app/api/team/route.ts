@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // GET /api/team - Get all team members for the organization
 export async function GET() {
@@ -45,7 +46,8 @@ export async function GET() {
 
     // Get user details for each member
     const memberIds = members.map((m) => m.user_id)
-    const { data: users } = await supabase.auth.admin.listUsers()
+    const adminClient = createAdminClient()
+    const { data: users } = await adminClient.auth.admin.listUsers()
 
     const membersWithDetails = members.map((member) => {
       const userDetails = users?.users.find((u) => u.id === member.user_id)

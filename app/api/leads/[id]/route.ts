@@ -13,11 +13,11 @@ const updateLeadSchema = z.object({
 // GET /api/leads/[id] - Get single lead
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const leadId = params.id
+    const { id: leadId } = await params
 
     // First verify we have an authenticated user
     const { data: { user } } = await supabase.auth.getUser()
@@ -69,11 +69,11 @@ export async function GET(
 // PATCH /api/leads/[id] - Update lead
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const leadId = params.id
+    const { id: leadId } = await params
 
     // Get user's organization and role
     const { data: { user } } = await supabase.auth.getUser()

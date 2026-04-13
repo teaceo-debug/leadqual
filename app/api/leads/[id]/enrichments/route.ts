@@ -6,11 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // GET /api/leads/[id]/enrichments - Get enrichments for a lead
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const leadId = params.id
+    const { id: leadId } = await params
 
     // Get user's organization
     const { data: { user } } = await supabase.auth.getUser()
@@ -85,11 +85,11 @@ export async function GET(
 // POST /api/leads/[id]/enrichments - Trigger enrichment for a lead
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const leadId = params.id
+    const { id: leadId } = await params
 
     // Get user's organization and role
     const { data: { user } } = await supabase.auth.getUser()

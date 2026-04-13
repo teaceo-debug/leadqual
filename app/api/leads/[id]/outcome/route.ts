@@ -13,11 +13,11 @@ const outcomeSchema = z.object({
 // POST /api/leads/[id]/outcome - Record an outcome for a lead
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const leadId = params.id
+    const { id: leadId } = await params
 
     // Get user's organization and role
     const { data: { user } } = await supabase.auth.getUser()
@@ -151,11 +151,11 @@ export async function POST(
 // GET /api/leads/[id]/outcome - Get outcomes for a lead
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const leadId = params.id
+    const { id: leadId } = await params
 
     // Get user's organization
     const { data: { user } } = await supabase.auth.getUser()

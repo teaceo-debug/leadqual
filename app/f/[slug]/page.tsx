@@ -145,17 +145,21 @@ export default function PublicFormPage() {
     // Load Facebook Pixel
     const fb = form.facebook as { pixel_id?: string } | undefined
     if (fb?.pixel_id) {
-      const script = document.createElement('script')
-      script.innerHTML = `
-        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
-        (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${fb.pixel_id}');
-        fbq('track','PageView');
-      `
-      document.head.appendChild(script)
+      // Sanitize pixel ID to prevent XSS — pixel IDs are numeric only
+      const safePixelId = String(fb.pixel_id).replace(/\D/g, '')
+      if (safePixelId) {
+        const script = document.createElement('script')
+        script.innerHTML = `
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+          n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+          (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init','${safePixelId}');
+          fbq('track','PageView');
+        `
+        document.head.appendChild(script)
+      }
     }
   }, [form])
 
