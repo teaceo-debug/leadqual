@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerLeadQualifiedWebhook } from '@/lib/webhooks'
 import { sendHotLeadNotification } from '@/lib/email'
+import { fireCAPIEvent, getOrgFacebookSettings, leadToTrackingParams, scoreToValue } from '@/lib/capi'
 import {
   extractFeatures,
   calculateWeightedScore,
@@ -176,6 +177,25 @@ export async function qualifyLead(leadId: string): Promise<QualificationResult |
     recommended_action: result.recommended_action,
     qualified_at: new Date().toISOString(),
   }).catch(console.error)
+
+  // Fire QualifiedLead CAPI event for leads scoring 50+
+  // This is the KEY tiered event — advertisers optimize campaigns for this
+  if (result.score >= 50) {
+    const fb = await getOrgFacebookSettings(lead.organization_id)
+    if (fb) {
+      const tp = leadToTrackingParams(lead)
+      fireCAPIEvent({
+        eventName: 'QualifiedLead',
+        eventId: `qual_${leadId}`,
+        actionSource: 'system_generated',
+        ...tp,
+        score: result.score,
+        pixelId: fb.pixel_id!,
+        accessToken: fb.access_token!,
+        testEventCode: fb.test_event_code,
+      }).catch(console.error)
+    }
+  }
 
   // Create notification if hot lead
   if (result.label === 'hot') {

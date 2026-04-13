@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerLeadUpdatedWebhook } from '@/lib/webhooks'
-import { createHash } from 'crypto'
+import { fireCAPIEvent, getOrgFacebookSettings, leadToTrackingParams } from '@/lib/capi'
 import { z } from 'zod'
 
 const updateLeadSchema = z.object({
@@ -166,69 +165,24 @@ export async function PATCH(
   }
 }
 
-// Fire a Purchase event to Facebook CAPI when a lead converts
-// This builds the highest-quality seed audience (actual buyers) for Lookalike targeting
+// Fire ClosedWon (Purchase) CAPI event when a lead converts
+// Uses stored fbclid/fbp/fbc from original form submission for attribution
+// Sends score as monetary value so Facebook optimizes toward high-value converters
 async function firePurchaseCAPI(organizationId: string, lead: Record<string, unknown>) {
-  const admin = createAdminClient()
+  const fb = await getOrgFacebookSettings(organizationId)
+  if (!fb) return
 
-  // Find forms with Facebook settings for this org
-  const { data: forms } = await admin
-    .from('forms')
-    .select('facebook')
-    .eq('organization_id', organizationId)
-    .not('facebook', 'eq', '{}')
+  const tp = leadToTrackingParams(lead)
+  const score = (lead.score as number) || 0
 
-  if (!forms || forms.length === 0) return
-
-  const fb = forms[0].facebook as { pixel_id?: string; access_token?: string; test_event_code?: string }
-  if (!fb?.pixel_id || !fb?.access_token) return
-
-  const hash = (v: string) => v ? createHash('sha256').update(v.toLowerCase().trim()).digest('hex') : ''
-  const email = lead.email as string || ''
-  const phone = ((lead.phone as string) || '').replace(/\D/g, '')
-  const phoneNorm = phone.length === 10 ? '1' + phone : phone
-
-  const userData: Record<string, unknown> = {}
-  if (email) userData.em = [hash(email)]
-  if (phoneNorm) userData.ph = [hash(phoneNorm)]
-  if (lead.first_name) userData.fn = [hash(lead.first_name as string)]
-  if (lead.last_name) userData.ln = [hash(lead.last_name as string)]
-  if (lead.source_ip) userData.client_ip_address = lead.source_ip
-  if (lead.user_agent) userData.client_user_agent = lead.user_agent
-
-  const leadScore = (lead.score as number) || 0
-  const leadTier = (lead.label as string) || 'unscored'
-
-  const eventId = `purchase_${lead.id}`
-  const payload = {
-    data: [{
-      event_name: 'Purchase',
-      event_time: Math.floor(Date.now() / 1000),
-      event_id: eventId,
-      action_source: 'website',
-      user_data: userData,
-      custom_data: {
-        currency: 'USD',
-        // SCORE FEEDBACK: Send the lead score as the purchase value
-        // Facebook optimizes toward higher-value conversions
-        // A lead that scored 85 and converted is worth more signal than one that scored 45
-        value: leadScore,
-        content_category: leadTier,
-        lead_score: leadScore,
-        lead_tier: leadTier,
-      },
-    }],
-    ...(fb.test_event_code ? { test_event_code: fb.test_event_code } : {}),
-  }
-
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${fb.pixel_id}/events?access_token=${fb.access_token}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }
-  )
-
-  console.log(`Purchase CAPI fired for lead ${lead.id}:`, await res.json().catch(() => ({})))
+  await fireCAPIEvent({
+    eventName: 'ClosedWon',
+    eventId: `closedwon_${lead.id}`,
+    actionSource: 'system_generated',
+    ...tp,
+    score,
+    pixelId: fb.pixel_id!,
+    accessToken: fb.access_token!,
+    testEventCode: fb.test_event_code,
+  })
 }
